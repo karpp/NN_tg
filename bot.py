@@ -16,7 +16,7 @@ import warnings
 
 session = {}
 
-token = '420141718:AAGOjIIKYXh8USk_pmfofvgkeF4dO6t94Rk'
+token = '540737355:AAFxnG-XsPTdK3CEwjvw1e4M1FiS7z8INbc'
 bot = TeleBot(token)
 
 def load_labels():
@@ -114,7 +114,7 @@ def receive_image(msg):
     heatmap = cv2.applyColorMap(cv2.resize(CAMs[0], (width, height)), cv2.COLORMAP_JET)
     result = (heatmap * 0.3 + img * 0.7).astype(float) / 255
     plt.imsave('result.jpg', result)
-    ans = '--SCENE CATEGORIES:'
+    ans = '--SCENE CATEGORIES:\n'
     for i in range(0, 5):
         ans += '{:.3f} -> {}\n'.format(probs[i], classes[idx[i]])
     bot.send_message(msg.chat.id, ans)
