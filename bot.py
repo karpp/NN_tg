@@ -9,7 +9,7 @@ from torchvision import transforms
 from torch.nn import functional as F
 from scipy.misc import imresize
 from telebot import TeleBot
-from time import ctime
+from time import ctime, sleep
 from random import randint
 from urllib.request import urlretrieve
 import warnings
@@ -83,30 +83,30 @@ def returnCAM(feature_conv, weight_softmax, class_idx):
     return output_cam
 
 
-@bot.message_handler(content_types=['image'])
+@bot.message_handler(content_types=['photo'])
 def receive_image(msg):
+    print('Got image')
     # download image
     file_id = msg.photo[-1].file_id
-    url = "https://api.telegram.org/file/bot" + token + "/" +
-          bot.get_file(file_id).file_path
+    url = "https://api.telegram.org/file/bot" + token + "/" + bot.get_file(file_id).file_path
     urlretrieve(url, 'test_image.jpg')
 
-
-    image_transformer = image_transformer() # image transformer
+    print(1)
+    image_transforme = image_transformer() # image transformer
     test_filename = 'test_image.jpg'
     img = Image.open(test_filename)
-    input_img = image_transformer(img).unsqueeze(0)
+    input_img = image_transforme(img).unsqueeze(0)
     logit = model.forward(input_img)
     output = F.softmax(logit, 1).data.squeeze()
     probs, idx = output.sort(dim=0, descending=True)
     probs = probs.numpy()
     idx = idx.numpy()
     io_image = np.mean(labels_IO[idx[:10]]) # vote for the indoor or outdoor
-
+    print(2)
     if io_image > 0.5:
-        bot.send_message(msg.chat.idm, 'Outdoor')
+        bot.send_message(msg.chat.id, 'Outdoor')
     else:
-        bot.send_message(msg.chat.idm, 'Indoor')
+        bot.send_message(msg.chat.id, 'Indoor')
 
     CAMs = returnCAM(features_blobs[0], weight_softmax, idx[0])
     img = plt.imread(test_filename)
@@ -116,10 +116,11 @@ def receive_image(msg):
     plt.imsave('result.jpg', result)
     ans = '--SCENE CATEGORIES:'
     for i in range(0, 5):
-        ans += '{:.3f} -> {}'.format(probs[i], classes[idx[i]])
+        ans += '{:.3f} -> {}\n'.format(probs[i], classes[idx[i]])
     bot.send_message(msg.chat.id, ans)
+    print(3)
     bot.send_photo(msg.chat.id, open('result.jpg', 'rb'))
-
+    print(4)
 
 
 @bot.message_handler(content_types=['text'])
@@ -156,3 +157,4 @@ while True:
         bot.polling(none_stop=True)
     except Exception as e:
         print(e)
+        sleep(1)
