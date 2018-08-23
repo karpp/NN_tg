@@ -41,7 +41,21 @@ def load_labels():
             labels_IO.append(int(items[-1]) - 1) # 0 is indoor, 1 is outdoor
     labels_IO = np.array(labels_IO)
 
-    return classes, labels_IO
+    # scene attribute relevant
+    file_name_attribute = 'labels_sunattribute.txt'
+    if not os.access(file_name_attribute, os.W_OK):
+        synset_url = 'https://raw.githubusercontent.com/csailvision/places365/master/labels_sunattribute.txt'
+        os.system('wget ' + synset_url)
+    with open(file_name_attribute) as f:
+        lines = f.readlines()
+        labels_attribute = [item.rstrip() for item in lines]
+    file_name_W = 'W_sceneattribute_wideresnet18.npy'
+    if not os.access(file_name_W, os.W_OK):
+        synset_url = 'http://places2.csail.mit.edu/models_places365/W_sceneattribute_wideresnet18.npy'
+        os.system('wget ' + synset_url)
+    W_attribute = np.load(file_name_W)
+
+    return classes, labels_IO, labels_attribute, W_attribute
 
 def hook_feature(module, input, output):
     features_blobs.append(np.squeeze(output.data.numpy()))
@@ -85,13 +99,11 @@ def returnCAM(feature_conv, weight_softmax, class_idx):
 
 @bot.message_handler(content_types=['photo'])
 def receive_image(msg):
-    print('Got image')
     # download image
     file_id = msg.photo[-1].file_id
     url = "https://api.telegram.org/file/bot" + token + "/" + bot.get_file(file_id).file_path
     urlretrieve(url, 'test_image.jpg')
 
-    print(1)
     image_transforme = image_transformer() # image transformer
     test_filename = 'test_image.jpg'
     img = Image.open(test_filename)
@@ -102,7 +114,7 @@ def receive_image(msg):
     probs = probs.numpy()
     idx = idx.numpy()
     io_image = np.mean(labels_IO[idx[:10]]) # vote for the indoor or outdoor
-    print(2)
+
     if io_image > 0.5:
         bot.send_message(msg.chat.id, 'Outdoor')
     else:
@@ -118,9 +130,13 @@ def receive_image(msg):
     for i in range(0, 5):
         ans += '{:.3f} -> {}\n'.format(probs[i], classes[idx[i]])
     bot.send_message(msg.chat.id, ans)
-    print(3)
+
+    responses_attribute = W_attribute.dot(features_blobs[1])
+    idx_a = np.argsort(responses_attribute)
+    ans = '--SCENE ATTRIBUTES:\n'
+    ans += ', '.join([labels_attribute[idx_a[i]] for i in range(-1,-10,-1)])
+    bot.send_message(msg.chat.id, ans)
     bot.send_photo(msg.chat.id, open('result.jpg', 'rb'))
-    print(4)
 
 
 @bot.message_handler(content_types=['text'])
@@ -146,7 +162,7 @@ def handle(msg):
 
 
 warnings.filterwarnings("ignore")
-classes, labels_IO = load_labels()
+classes, labels_IO, labels_attribute, W_attribute = load_labels()
 model = load_model()
 features_blobs = []
 params = list(model.parameters())
